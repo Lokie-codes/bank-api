@@ -1,0 +1,725 @@
+openapi: 3.0.0
+info:
+  title: Banking API Platform
+  version: "1.0.0"
+  description: >
+    This API provides endpoints for a Banking API Platform that standardizes core banking services for fintech companies. The API supports customer registration with KYC verification, payment processing, account management, and consent management.
+    All requests are secured using OAuth2/JWT and must include required headers like X-Correlation-ID for traceability.
+servers:
+  - url: https://api.bankplatform.com/v1
+    description: Production server
+  - url: https://sandbox.api.bankplatform.com/v1
+    description: Sandbox server
+
+paths:
+  /customers:
+    post:
+      tags:
+        - Customers
+      summary: Register a new customer and initiate KYC verification
+      description: >
+        This endpoint creates a new customer record and triggers the KYC verification process.
+        Required headers include an OAuth2 bearer token, Content-Type, and a unique X-Correlation-ID.
+      operationId: registerCustomer
+      requestBody:
+        description: Customer registration request payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRegistrationRequest'
+            examples:
+              example1:
+                summary: Valid customer registration request.
+                value:
+                  firstName: "Alice"
+                  lastName: "Doe"
+                  email: "alice.doe@example.com"
+                  phone: "+1234567890"
+                  address:
+                    street: "123 Main St"
+                    city: "Metropolis"
+                    state: "NY"
+                    postalCode: "10001"
+                    country: "USA"
+                  kycDocument: "JVBERi0xLjMKJcfs... (Base64 encoded PDF)"
+                  metadata:
+                    source: "mobile_app"
+                    referralCode: "REF1234"
+      responses:
+        "201":
+          description: Customer registered successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerRegistrationResponse'
+              examples:
+                success:
+                  summary: Successful registration.
+                  value:
+                    customerId: "123e4567-e89b-12d3-a456-426614174000"
+                    status: "pending"
+                    message: "Customer registered successfully, pending KYC verification."
+                    timestamp: "2025-03-24T15:30:00Z"
+                    correlationId: "abc123xyz"
+        "400":
+          description: Bad Request – Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingEmail:
+                  summary: Missing email.
+                  value:
+                    errorCode: "ERR_INVALID_INPUT"
+                    message: "Email is required and must be a valid email address."
+                    timestamp: "2025-03-24T15:32:00Z"
+                    correlationId: "abc123xyz"
+        "401":
+          description: Unauthorized – Invalid or missing API token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Conflict – Duplicate customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicateCustomer:
+                  summary: Duplicate customer.
+                  value:
+                    errorCode: "ERR_DUPLICATE_CUSTOMER"
+                    message: "A customer with this email already exists."
+                    timestamp: "2025-03-24T15:34:00Z"
+                    correlationId: "abc123xyz"
+        "500":
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /kyc:
+    post:
+      tags:
+        - KYC
+      summary: Submit KYC documents
+      description: >
+        Submits customer documents for KYC verification.
+        The endpoint requires a valid customerId and the document must be Base64 encoded.
+      operationId: submitKycDocuments
+      requestBody:
+        description: KYC verification request payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycVerificationRequest'
+            examples:
+              sampleKyc:
+                summary: Valid KYC submission.
+                value:
+                  customerId: "123e4567-e89b-12d3-a456-426614174000"
+                  documentType: "passport"
+                  documentData: "JVBERi0xLjMKJcfs... (Base64 encoded image)"
+                  documentExpiry: "2030-12-31"
+                  metadata:
+                    submissionChannel: "web_portal"
+      responses:
+        "200":
+          description: KYC verification successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycVerificationResponse'
+              examples:
+                successKyc:
+                  summary: Successful KYC response.
+                  value:
+                    customerId: "123e4567-e89b-12d3-a456-426614174000"
+                    kycStatus: "verified"
+                    verificationDate: "2025-03-24T15:30:00Z"
+                    correlationId: "def456uvw"
+        "400":
+          description: Bad Request – Invalid document data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidDocument:
+                  summary: Missing document data.
+                  value:
+                    errorCode: "ERR_INVALID_INPUT"
+                    message: "Document data is missing or improperly formatted."
+                    timestamp: "2025-03-24T15:40:00Z"
+                    correlationId: "def456uvw"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "404":
+          description: Not Found – Customer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  summary: Customer not found.
+                  value:
+                    errorCode: "ERR_NOT_FOUND"
+                    message: "Customer ID not found."
+                    timestamp: "2025-03-24T15:42:00Z"
+                    correlationId: "def456uvw"
+        "422":
+          description: Unprocessable Entity – Document expired or invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                expiredDocument:
+                  summary: Expired document.
+                  value:
+                    errorCode: "ERR_INVALID_DOCUMENT"
+                    message: "The provided document is expired or of an unsupported type."
+                    timestamp: "2025-03-24T15:43:00Z"
+                    correlationId: "def456uvw"
+        "500":
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments:
+    post:
+      tags:
+        - Payments
+      summary: Initiate a payment transaction
+      description: >
+        Initiates a payment transaction from a specified account. The request must include payment details and a valid reference number.
+      operationId: initiatePayment
+      requestBody:
+        description: Payment initiation request payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitiationRequest'
+            examples:
+              samplePayment:
+                summary: Valid payment request.
+                value:
+                  accountId: "acc-001"
+                  amount: 250.75
+                  currency: "USD"
+                  paymentMethod: "debit"
+                  paymentDetails:
+                    merchantId: "merch-123"
+                    referenceNumber: "INV-20250324-001"
+                  metadata:
+                    channel: "mobile_app"
+                    transactionType: "purchase"
+      responses:
+        "201":
+          description: Payment initiated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitiationResponse'
+              examples:
+                paymentSuccess:
+                  summary: Successful payment initiation.
+                  value:
+                    paymentId: "pay-789"
+                    paymentStatus: "initiated"
+                    message: "Payment is being processed."
+                    timestamp: "2025-03-24T15:35:00Z"
+                    correlationId: "ghi789rst"
+        "400":
+          description: Bad Request – Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Conflict – Duplicate transaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicatePayment:
+                  summary: Duplicate transaction error.
+                  value:
+                    errorCode: "ERR_DUPLICATE_TRANSACTION"
+                    message: "A payment with the provided reference number has already been processed."
+                    timestamp: "2025-03-24T15:39:00Z"
+                    correlationId: "ghi789rst"
+        "402":
+          description: Payment Required – Insufficient funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficientFunds:
+                  summary: Insufficient funds error.
+                  value:
+                    errorCode: "ERR_INSUFFICIENT_FUNDS"
+                    message: "Insufficient funds in the account."
+                    timestamp: "2025-03-24T15:40:00Z"
+                    correlationId: "ghi789rst"
+        "500":
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /accounts/{accountId}:
+    get:
+      tags:
+        - Accounts
+      summary: Retrieve account information
+      description: >
+        Retrieves detailed information for a specific account. Optional query parameters allow inclusion of recent transaction history with pagination.
+      operationId: getAccountInfo
+      parameters:
+        - name: accountId
+          in: path
+          description: Unique account identifier.
+          required: true
+          schema:
+            type: string
+        - name: includeTransactions
+          in: query
+          description: If true, include recent transactions.
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Maximum number of transactions to return.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          description: Pagination offset for transactions.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Account details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountInfoResponse'
+              examples:
+                accountSuccess:
+                  summary: Successful account retrieval.
+                  value:
+                    accountId: "acc-001"
+                    customerId: "123e4567-e89b-12d3-a456-426614174000"
+                    accountType: "savings"
+                    balance: 1024.50
+                    currency: "USD"
+                    createdAt: "2025-03-01T12:00:00Z"
+                    transactions:
+                      - transactionId: "txn-1001"
+                        amount: 100.00
+                        type: "credit"
+                        date: "2025-03-23T10:00:00Z"
+                      - transactionId: "txn-1002"
+                        amount: 50.00
+                        type: "debit"
+                        date: "2025-03-24T09:30:00Z"
+                    correlationId: "jkl012mno"
+        "400":
+          description: Bad Request – Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "404":
+          description: Not Found – Account not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consents:
+    post:
+      tags:
+        - Consents
+      summary: Record customer consent
+      description: >
+        Records customer consent for data sharing or marketing purposes.
+      operationId: recordConsent
+      requestBody:
+        description: Consent request payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+            examples:
+              consentExample:
+                summary: Valid consent request.
+                value:
+                  customerId: "123e4567-e89b-12d3-a456-426614174000"
+                  consentType: "data_sharing"
+                  consentStatus: "granted"
+                  metadata:
+                    ipAddress: "192.168.1.10"
+                    userAgent: "Mozilla/5.0 (compatible; MyApp/1.0)"
+      responses:
+        "201":
+          description: Consent recorded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                consentSuccess:
+                  summary: Successful consent recording.
+                  value:
+                    consentId: "cons-456"
+                    customerId: "123e4567-e89b-12d3-a456-426614174000"
+                    consentStatus: "granted"
+                    timestamp: "2025-03-24T15:45:00Z"
+                    correlationId: "pqr345stu"
+        "400":
+          description: Bad Request – Missing or invalid fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Conflict – Duplicate consent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CustomerRegistrationRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            postalCode:
+              type: string
+            country:
+              type: string
+          required:
+            - street
+            - city
+            - state
+            - postalCode
+            - country
+        kycDocument:
+          type: string
+          description: Base64 encoded document.
+        metadata:
+          type: object
+          properties:
+            source:
+              type: string
+            referralCode:
+              type: string
+      required:
+        - firstName
+        - lastName
+        - email
+        - phone
+        - address
+        - kycDocument
+
+    CustomerRegistrationResponse:
+      type: object
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        status:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+      required:
+        - customerId
+        - status
+        - message
+        - timestamp
+        - correlationId
+
+    KycVerificationRequest:
+      type: object
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        documentType:
+          type: string
+        documentData:
+          type: string
+          description: Base64 encoded data.
+        documentExpiry:
+          type: string
+          format: date
+        metadata:
+          type: object
+          properties:
+            submissionChannel:
+              type: string
+      required:
+        - customerId
+        - documentType
+        - documentData
+        - documentExpiry
+
+    KycVerificationResponse:
+      type: object
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        kycStatus:
+          type: string
+        verificationDate:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+      required:
+        - customerId
+        - kycStatus
+        - verificationDate
+        - correlationId
+
+    PaymentInitiationRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        paymentMethod:
+          type: string
+        paymentDetails:
+          type: object
+          properties:
+            merchantId:
+              type: string
+            referenceNumber:
+              type: string
+          required:
+            - merchantId
+            - referenceNumber
+        metadata:
+          type: object
+          properties:
+            channel:
+              type: string
+            transactionType:
+              type: string
+      required:
+        - accountId
+        - amount
+        - currency
+        - paymentMethod
+        - paymentDetails
+
+    PaymentInitiationResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+        paymentStatus:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+      required:
+        - paymentId
+        - paymentStatus
+        - message
+        - timestamp
+        - correlationId
+
+    AccountInfoResponse:
+      type: object
+      properties:
+        accountId:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        accountType:
+          type: string
+        balance:
+          type: number
+          format: float
+        currency:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              transactionId:
+                type: string
+              amount:
+                type: number
+                format: float
+              type:
+                type: string
+              date:
+                type: string
+                format: date-time
+        correlationId:
+          type: string
+      required:
+        - accountId
+        - customerId
+        - accountType
+        - balance
+        - currency
+        - createdAt
+        - correlationId
+
+    ConsentRequest:
+      type: object
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        consentType:
+          type: string
+        consentStatus:
+          type: string
+        metadata:
+          type: object
+          properties:
+            ipAddress:
+              type: string
+            userAgent:
+              type: string
+      required:
+        - customerId
+        - consentType
+        - consentStatus
+
+    ConsentResponse:
+      type: object
+      properties:
+        consentId:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        consentStatus:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+      required:
+        - consentId
+        - customerId
+        - consentStatus
+        - timestamp
+        - correlationId
+
+    ErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+      required:
+        - errorCode
+        - message
+        - timestamp
+        - correlationId
